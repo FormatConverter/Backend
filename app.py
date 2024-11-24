@@ -33,6 +33,11 @@ def convert_audio():
 
     # get output format from the form and check if it is valid
     output_format = request.form.get('output_format')
+    codec = request.form.get('codec')
+    bitrate = request.form.get('bitrate')
+    sample_rate = request.form.get('sample_rate')
+    channels = request.form.get('channels')
+
     if not output_format or '.' in output_format:
         os.remove(filepath)
         return jsonify({'error': 'Invalid or missing output format. Please specify a valid format like "mp3", "wav", etc.'}), 400
@@ -46,9 +51,27 @@ def convert_audio():
     output_filename = os.path.splitext(filename)[0] + "." + output_format
     output_filepath = os.path.join(OUTPUT_FOLDER, output_filename)
 
+    command = ["ffmpeg", "-i", filepath]
+
+    # Add codec, bitrate, samplerate, channels if specified
+    if codec:
+        command.extend(["-c:a", codec])
+
+    if bitrate:
+        command.extend(["-b:a", bitrate])
+
+    if sample_rate:
+        command.extend(["-ar", sample_rate])
+
+    if channels:
+        command.extend(["-ac", channels])
+
+    # add output file path
+    command.append(output_filepath)
+
     # run ffmpeg convert the file
     try:
-        command = ["ffmpeg", "-i", filepath, output_filepath]
+        # command = ["ffmpeg", "-i", filepath, output_filepath]
         subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         os.remove(filepath)  # remove the uploaded file
         return jsonify({
