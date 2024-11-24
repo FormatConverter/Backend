@@ -17,42 +17,9 @@ def allowed_file(filename, allowed_extensions):
     '''
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed_extensions
 
-# Endpoint to convert MP3 to WAV using FFmpeg
-@app.route('/mp3_to_wav', methods=['POST'])
-def convert_mp3_to_wav():
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file part in the request'}), 400
-
-    file = request.files['file']
-    allowed_extensions = {'mp3'}
-
-    if file.filename == '':
-        return jsonify({'error': 'No file selected for upload'}), 400
-
-    if file and allowed_file(file.filename, allowed_extensions):
-        filename = secure_filename(file.filename)
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(filepath)
-
-        # Convert MP3 to WAV using FFmpeg
-        try:
-            wav_filename = os.path.splitext(filename)[0] + ".wav"
-            wav_filepath = os.path.join(OUTPUT_FOLDER, wav_filename)
-            command = ["ffmpeg", "-i", filepath, wav_filepath]
-            subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            os.remove(filepath) # remove the uploaded MP3 file
-            return jsonify({
-                'message': 'File converted successfully',
-                'wav_file': wav_filename
-            })
-        except subprocess.CalledProcessError as e:
-            return jsonify({'error': f'FFmpeg failed: {e.stderr.decode()}'}), 500
-
-    return jsonify({'error': 'Unsupported file type'}), 400
-
-# Endpoint to convert WAV to MP3 using FFmpeg
-@app.route('/wav_to_mp3', methods=['POST'])
-def convert_wav_to_mp3():
+# Conversion endpoint
+@app.route('/convert', methods=['POST'])
+def convert_audio():
     if 'file' not in request.files:
         return jsonify({'error': 'No file part in the request'}), 400
 
@@ -64,24 +31,33 @@ def convert_wav_to_mp3():
     filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
     file.save(filepath)
 
-    if allowed_file(filename, {'wav'}):
-        mp3_filename = os.path.splitext(filename)[0] + ".mp3"
-        mp3_filepath = os.path.join(OUTPUT_FOLDER, mp3_filename)
-        try:
-            command = ["ffmpeg", "-i", filepath, mp3_filepath]
-            subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            os.remove(filepath)  # remove the uploaded WAV file
-            return jsonify({
-                'message': 'WAV converted to MP3 successfully',
-                'mp3_file': mp3_filename
-            })
-        except subprocess.CalledProcessError as e:
-            os.remove(filepath)
-            return jsonify({'error': f'FFmpeg failed: {e.stderr.decode()}'}), 500
-
-    else:
+    # get output format from the form and check if it is valid
+    output_format = request.form.get('output_format')
+    if not output_format or '.' in output_format:
         os.remove(filepath)
-        return jsonify({'error': 'Unsupported file type'}), 400
+        return jsonify({'error': 'Invalid or missing output format. Please specify a valid format like "mp3", "wav", etc.'}), 400
+    
+    input_extension = filename.rsplit('.', 1)[1].lower()
+    valid_extensions = ['mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a', 'wma', 'webm', 'opus', 'aiff']
+    if input_extension not in valid_extensions:
+        os.remove(filepath)
+        return jsonify({'error': 'Unsupported input file format'}), 400
+
+    output_filename = os.path.splitext(filename)[0] + "." + output_format
+    output_filepath = os.path.join(OUTPUT_FOLDER, output_filename)
+
+    # run ffmpeg convert the file
+    try:
+        command = ["ffmpeg", "-i", filepath, output_filepath]
+        subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        os.remove(filepath)  # remove the uploaded file
+        return jsonify({
+            'message': f'File converted to {output_format} successfully',
+            'output_file': output_filename
+        })
+    except subprocess.CalledProcessError as e:
+        os.remove(filepath)
+        return jsonify({'error': f'FFmpeg failed: {e.stderr.decode()}'}), 500
 
 
 
