@@ -7,6 +7,7 @@ app = Flask(__name__)
 
 UPLOAD_FOLDER = 'uploads'
 OUTPUT_FOLDER = 'outputs'
+FFMPEG_WORKERS = 4
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -51,7 +52,8 @@ def convert_audio():
     output_filename = os.path.splitext(filename)[0] + "." + output_format
     output_filepath = os.path.join(OUTPUT_FOLDER, output_filename)
 
-    command = ["ffmpeg", "-i", filepath]
+    # command = ["ffmpeg", "-i", filepath]
+    command = ["ffmpeg", "-i", filepath, "-threads", str(FFMPEG_WORKERS)]
 
     # Add codec, bitrate, samplerate, channels if specified
     if codec:
