@@ -98,7 +98,7 @@ def download_wav(wav_file):
 
 def cleanup():
     '''
-    Clean up uploaded and output folders
+    Clean up uploaded and output folders when the server is shutting down
     '''
     print("Server shutting down. Cleaning up...")
     if os.path.exists(UPLOAD_FOLDER):
