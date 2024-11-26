@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify, send_file
 from werkzeug.utils import secure_filename
 import os
+import atexit
 import subprocess
 
 app = Flask(__name__)
@@ -12,6 +13,7 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
+# helper function to check if the file extension is allowed
 def allowed_file(filename, allowed_extensions):
     '''
     Check if the file extension is allowed
@@ -84,8 +86,6 @@ def convert_audio():
         os.remove(filepath)
         return jsonify({'error': f'FFmpeg failed: {e.stderr.decode()}'}), 500
 
-
-
 # Endpoint to download converted WAV
 @app.route('/download/<wav_file>', methods=['GET'])
 def download_wav(wav_file):
@@ -95,6 +95,21 @@ def download_wav(wav_file):
         os.remove(wav_filepath)
         return res
     return jsonify({'error': 'File not found'}), 404
+
+def cleanup():
+    '''
+    Clean up uploaded and output folders
+    '''
+    print("Server shutting down. Cleaning up...")
+    if os.path.exists(UPLOAD_FOLDER):
+        subprocess.run(['rm', '-rf', UPLOAD_FOLDER], check=True)
+
+    if os.path.exists(OUTPUT_FOLDER):
+        subprocess.run(['rm', '-rf', OUTPUT_FOLDER], check=True)
+    
+    print(f"Cleaned up {UPLOAD_FOLDER} and {OUTPUT_FOLDER}")
+
+atexit.register(cleanup)
 
 if __name__ == '__main__':
     app.run(debug=True)
