@@ -40,6 +40,7 @@ def convert_audio():
     bitrate = request.form.get('bitrate')
     sample_rate = request.form.get('sample_rate')
     channels = request.form.get('channels')
+    volume = request.form.get('volume')
 
     if not output_format or '.' in output_format:
         os.remove(filepath)
@@ -57,7 +58,7 @@ def convert_audio():
     # command = ["ffmpeg", "-i", filepath]
     command = ["ffmpeg", "-i", filepath, "-threads", str(FFMPEG_WORKERS)]
 
-    # Add codec, bitrate, samplerate, channels if specified
+    # Add codec, bitrate, samplerate, channels, volume if specified
     if codec:
         command.extend(["-c:a", codec])
 
@@ -69,6 +70,15 @@ def convert_audio():
 
     if channels:
         command.extend(["-ac", channels])
+    
+    if volume:
+        try:
+            float(volume) # check if the volume is a valid number
+            command.extend(["-filter:a", f"volume={volume}"])
+        except ValueError:
+            os.remove(filepath)
+            return jsonify({'error': 'Invalid volume value. Please provide a numeric value.'}), 400
+
 
     # add output file path
     command.append(output_filepath)
@@ -91,10 +101,15 @@ def convert_audio():
 def download_wav(wav_file):
     wav_filepath = os.path.join(OUTPUT_FOLDER, wav_file)
     if os.path.exists(wav_filepath):
-        res = send_file(wav_filepath, as_attachment=True)
-        os.remove(wav_filepath)
-        return res
+        try:
+            res = send_file(wav_filepath, as_attachment=True)
+            os.remove(wav_filepath)
+            return res
+        except Exception as e:
+            return jsonify({'error': f'Failed to download file: {str(e)}'}), 500
+        
     return jsonify({'error': 'File not found'}), 404
+
 
 def cleanup():
     '''
