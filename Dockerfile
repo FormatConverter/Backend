@@ -11,10 +11,10 @@ WORKDIR /app
 
 COPY . .
 
-RUN pip install flask gunicorn
+RUN pip install flask gunicorn flask-cors
 
-EXPOSE 5000
+EXPOSE 5050
 
 ENV FLASK_ENV=production
 
-CMD ["gunicorn", "--workers", "4", "--bind", "0.0.0.0:5000", "app:app"]
+CMD ["gunicorn", "--workers", "4", "--bind", "0.0.0.0:5050", "app:app"]

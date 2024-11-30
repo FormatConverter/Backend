@@ -1,10 +1,13 @@
 from flask import Flask, request, jsonify, send_file
+from flask_cors import CORS
 from werkzeug.utils import secure_filename
 import os
 import atexit
 import subprocess
 
 app = Flask(__name__)
+
+CORS(app, origins=["http://localhost:3000"], supports_credentials=True)
 
 UPLOAD_FOLDER = 'uploads'
 OUTPUT_FOLDER = 'outputs'
@@ -23,6 +26,9 @@ def allowed_file(filename, allowed_extensions):
 # Audio conversion endpoint
 @app.route('/convert_audio', methods=['POST'])
 def convert_audio():
+    print("Audio Converting...")
+    print(request)
+
     if 'file' not in request.files:
         return jsonify({'error': 'No file part in the request'}), 400
 
