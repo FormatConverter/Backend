@@ -16,5 +16,5 @@ sudo docker build -t audio-converter .
 ## run the server
 
 ```bash
-sudo docker run -p 5000:5000 audio-converter
+sudo docker run -p 5050:5050 audio-converter
 ```
