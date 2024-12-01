@@ -61,8 +61,7 @@ def convert_audio():
     output_filename = os.path.splitext(filename)[0] + "." + output_format
     output_filepath = os.path.join(OUTPUT_FOLDER, output_filename)
 
-    # command = ["ffmpeg", "-i", filepath]
-    command = ["ffmpeg", "-i", filepath, "-threads", str(FFMPEG_WORKERS)]
+    command = ["ffmpeg", "-v", "verbose", "-i", filepath, "-threads", str(FFMPEG_WORKERS)]
 
     # Add codec, bitrate, samplerate, channels, volume if specified
     if codec:
@@ -88,7 +87,7 @@ def convert_audio():
 
     # add output file path
     command.append(output_filepath)
-
+    print(command)
     # run ffmpeg convert the file
     try:
         # command = ["ffmpeg", "-i", filepath, output_filepath]
