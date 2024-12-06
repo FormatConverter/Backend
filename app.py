@@ -70,9 +70,9 @@ def convert_audio():
         os.remove(filepath)
         return jsonify({'error': 'Unsupported input file format'}), 400
 
+    # generate output file path, and store the mapping between original and converted file names
     output_filename = f"{uuid.uuid4().hex}.{output_format}"
     output_filepath = os.path.join(OUTPUT_FOLDER, output_filename)
-
     file_mapping[output_filename] = filename.split('.')[0] + '.' + output_format
     
     command = ["ffmpeg", "-i", filepath, "-threads", str(FFMPEG_WORKERS)]
@@ -102,11 +102,10 @@ def convert_audio():
     # add output file path
     command.append(output_filepath)
     print(command)
+
     # run ffmpeg convert the file
     try:
-        # command = ["ffmpeg", "-i", filepath, output_filepath]
         subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        os.remove(filepath)  # remove the uploaded file
         return jsonify({
             'message': f'File converted to {output_format} successfully',
             'output_file': output_filename
@@ -197,7 +196,7 @@ def download_wav(unique_filename):
     if os.path.exists(download_filepath):
         try:
             res = send_file(download_filepath, download_name=original_filename, as_attachment=True)
-            # os.remove(download_filepath)
+            # os.remove(download_filepath) # remove the downloaded file
             return res
         except Exception as e:
             return jsonify({'error': f'Failed to download file: {str(e)}'}), 500
