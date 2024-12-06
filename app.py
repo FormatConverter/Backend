@@ -185,7 +185,7 @@ def convert_image():
 
 # Endpoint to download converted file
 @app.route('/download/<unique_filename>', methods=['GET'])
-def download_wav(unique_filename):
+def download_file(unique_filename):
     print("Downloading...")
     original_filename = file_mapping.get(unique_filename)
     print(original_filename)
