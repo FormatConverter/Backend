@@ -11,7 +11,8 @@ WORKDIR /app
 
 COPY . .
 
-RUN pip install flask gunicorn flask-cors
+RUN pip install flask gunicorn flask-cors openai-whisper argostranslate
+
 
 EXPOSE 5050
 
