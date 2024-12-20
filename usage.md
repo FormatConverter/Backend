@@ -10,6 +10,23 @@ curl -X POST -F "file=@yourfile.wav" -F "output_format=mp3" -F "codec=pcm_s16le"
 curl -X POST -F "file=@yourfile.jpg" -F "output_format=png" -F "width=500" -F "height=800" -F "quality=2" http://localhost:5000/convert_image
 ```
 
+## Transcription
+```bash
+curl -X POST -F "file=@yourfile.wav" http://localhost:5000/transcribe_audio
+```
+
+## Translation
+```bash
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"text": "Hello, how are you?", "from_code": "en", "to_code": "es"}' \
+  http://localhost:5050/translate_text
+```
+
+### Supported Languages
+
+```
+Arabic, Azerbaijani, Chinese, Dutch, English, Finnish, French, German, Hindi, Hungarian, Indonesian, Irish, Italian, Japanese, Korean, Polish, Portuguese, Russian, Spanish, Swedish, Turkish, Ukranian, Vietnamese
+```
 
 # Download
 

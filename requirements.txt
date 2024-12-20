@@ -1,0 +1,6 @@
+flask
+gunicorn
+flask-cors
+openai-whisper
+transformers
+argostranslate
