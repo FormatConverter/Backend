@@ -19,7 +19,7 @@ curl -X POST -F "file=@yourfile.wav" http://localhost:5000/transcribe_audio
 ```bash
 curl -X POST -H "Content-Type: application/json" \
   -d '{"text": "Hello, how are you?", "from_code": "en", "to_code": "es"}' \
-  http://localhost:5000/translate_text
+  http://localhost:5050/translate_text
 ```
 
 ### Supported Languages

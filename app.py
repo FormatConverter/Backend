@@ -32,6 +32,7 @@ def transcribe_audio(audio_file_path):
         "automatic-speech-recognition",
         model="openai/whisper-large-v3-turbo",
         device=device,
+        return_timestamps=True,
     )
     
     result = pipe(audio_file_path)
