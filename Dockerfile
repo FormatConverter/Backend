@@ -1,45 +1,62 @@
-# Use a slim base image with Python 3.9
-FROM python:3.9-slim AS base
+# # ------------------------------
+# # Stage 1: Build Whisper.cpp
+# # ------------------------------
+FROM python:3.9-slim AS whisperbuild
+RUN apt-get update && \
+    apt-get install -y curl gcc g++ make cmake libglib2.0-0 libsm6 libxext6 libxrender-dev ffmpeg git
 
-# Install build dependencies (used for compiling Python packages and ffmpeg)
+WORKDIR /whisper.cpp
+RUN git clone https://github.com/ggerganov/whisper.cpp . && \
+    cmake -B build && \
+    make -C build
+RUN bash ./models/download-ggml-model.sh base.en
+RUN bash ./models/download-ggml-model.sh tiny.en
+
+
+# # ------------------------------
+# # Stage 2: Base Stage
+# # ------------------------------
+
+FROM whisperbuild AS base
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libselinux1 ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# ------------------------------
+# Stage 3: Build Stage
+# ------------------------------
 FROM base AS build
 
-# Install required system dependencies, including build tools and ffmpeg
+# Install build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libselinux1 \
     build-essential \
-    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-# Set working directory
-WORKDIR /app
-
-# Copy only the requirements file to leverage Docker's cache
+# Copy requirements and install dependencies
 COPY requirements.txt .
-
-# Install Python dependencies in a virtual environment
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Final production image
+# ------------------------------
+# Stage 4: Production
+# ------------------------------
 FROM base AS production
 
-# Install only runtime dependencies (ffmpeg is required here)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ffmpeg \
-    && rm -rf /var/lib/apt/lists/*
+# Copy Whisper.cpp binaries from whisperbuild stage
+COPY --from=whisperbuild /whisper.cpp /whisper.cpp
 
-# Set the working directory for the app
-WORKDIR /app
-
-# Copy only the necessary files from the build stage
+# Copy application files
 COPY --from=build /usr/local /usr/local
 COPY . .
+
+# Set environment variables for Flask
+ENV FLASK_ENV=production
 
 # Expose application port
 EXPOSE 5050
 
-# Set environment variable for Flask to run in production mode
-ENV FLASK_ENV=production
-
-# Command to run the app using gunicorn with 4 workers and a timeout of 600 seconds
+# Command to run the app
 CMD ["gunicorn", "--workers", "4", "--bind", "0.0.0.0:5050", "app:app", "--timeout", "600"]

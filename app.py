@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 from routes.audio import audio_routes
 from routes.image import image_routes
-from routes.transcribe import transcribe_routes
+# from routes.transcribe import transcribe_routes
 import os
 import atexit
 import subprocess
@@ -11,7 +11,7 @@ import storage
 app = Flask(__name__)
 app.register_blueprint(audio_routes, url_prefix='/audio')
 app.register_blueprint(image_routes, url_prefix='/image')
-app.register_blueprint(transcribe_routes, url_prefix='/transcribe')
+# app.register_blueprint(transcribe_routes, url_prefix='/transcribe')
 CORS(app, origins=["http://localhost:3000"], expose_headers=["Content-Disposition"], supports_credentials=True)
 
 UPLOAD_FOLDER = 'uploads'

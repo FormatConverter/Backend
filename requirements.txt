@@ -1,10 +1,10 @@
 flask
 gunicorn
 flask-cors
-openai-whisper
-transformers
-argostranslate
-torch
+# openai-whisper
+# transformers
+# argostranslate
+# torch
 fpdf
 python-docx
 reportlab
