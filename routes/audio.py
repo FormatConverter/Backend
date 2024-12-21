@@ -2,8 +2,8 @@ from flask import Flask, Blueprint, request, jsonify, send_file
 from werkzeug.utils import secure_filename
 import os
 import uuid
-import atexit
 import subprocess
+import storage
 
 audio_routes = Blueprint("audio_routes", __name__)
 
@@ -13,7 +13,7 @@ FFMPEG_WORKERS = 4
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
-file_mapping = {}
+file_mapping = storage.get_file_mapping()
 
 def allowed_file(filename, allowed_extensions):
     '''
