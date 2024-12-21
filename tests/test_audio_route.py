@@ -2,6 +2,7 @@ import unittest
 from io import BytesIO
 from app import app
 import os
+import threading
 
 class AudioConversionTestCase(unittest.TestCase):
     def setUp(self):
@@ -104,7 +105,34 @@ class AudioConversionTestCase(unittest.TestCase):
             self.assertEqual(response.status_code, 200)
             self.assertIn('File converted to wav successfully', response.json['message'])
             self.assertIn('output_file', response.json)
- 
+    
+    def test_collision(self):
+        """Test for filename collision."""
+        def send_request():
+            with open(self.test_audio_path, 'rb') as f:
+                data = BytesIO(f.read())
+                data.seek(0)
+
+                response = self.app.post('/audio/convert_audio',
+                                        data={'file': (data, 'test.mp3'), 'output_format': 'wav'},
+                                        content_type='multipart/form-data')
+
+                self.assertEqual(response.status_code, 200)
+                self.assertIn('File converted to wav successfully', response.json['message'])
+                self.assertIn('output_file', response.json)
+
+            return response
+        
+        # Send two requests simultaneously
+        threads = []
+        for _ in range(2):
+            thread = threading.Thread(target=send_request)
+            threads.append(thread)
+            thread.start()
+        
+        # exit
+        for thread in threads:
+            thread.join()
 
 if __name__ == '__main__':
     unittest.main()
