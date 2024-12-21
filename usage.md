@@ -11,8 +11,15 @@ curl -X POST -F "file=@yourfile.jpg" -F "output_format=png" -F "width=500" -F "h
 ```
 
 ## Transcription
+
+### Audio
 ```bash
 curl -X POST -F "file=@yourfile.wav" http://localhost:5050/transcribe/transcribe_audio
+```
+
+### Video
+```bash
+curl -X POST -F "file=@yourfile.mp4" http://localhost:5050/transcribe/transcribe_video
 ```
 
 ## Translation
@@ -32,4 +39,38 @@ Arabic, Azerbaijani, Chinese, Dutch, English, Finnish, French, German, Hindi, Hu
 
 ```bash
 curl -O http://127.0.0.1:5050/download/example.wav
+```
+
+## Save Transcription
+
+### Save as TXT
+```bash
+  curl -X POST -H "Content-Type: application/json" \
+  -d '{"text": "This is the transcribed text.", "format": "txt"}' \
+  http://localhost:5050/transcribe/save_transcription \
+  --output transcription.txt
+```
+
+### Save as DOCX
+```bash
+  curl -X POST -H "Content-Type: application/json" \
+  -d '{"text": "This is the transcribed text.", "format": "docx"}' \
+  http://localhost:5050/transcribe/save_transcription \
+  --output transcription.docx
+```
+
+### Save as PDF
+```bash
+  curl -X POST -H "Content-Type: application/json" \
+  -d '{"text": "This is the transcribed text.", "format": "pdf"}' \
+  http://localhost:5050/transcribe/save_transcription \
+  --output transcription.pdf
+```
+
+### Save as JSON
+```bash
+  curl -X POST -H "Content-Type: application/json" \
+  -d '{"text": "This is the transcribed text.", "format": "json"}' \
+  http://localhost:5050/transcribe/save_transcription \
+  --output transcription.json
 ```
