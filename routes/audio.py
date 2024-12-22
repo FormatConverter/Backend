@@ -94,6 +94,7 @@ def convert_audio():
     # generate output file path, and store the mapping between original and converted file names
     output_filename = f"{uuid.uuid4().hex}.{output_format}"
     output_filepath = os.path.join(OUTPUT_FOLDER, output_filename)
+    print("output will be saved to ", output_filepath)
     file_mapping[output_filename] = filename.split('.')[0] + '.' + output_format
     
     command = ["ffmpeg", "-i", filepath, "-threads", str(FFMPEG_WORKERS)]
