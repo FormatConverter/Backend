@@ -1,22 +1,18 @@
-import subprocess
-import os
-import torch
-import argostranslate.package
-import argostranslate.translate
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, send_file
 from werkzeug.utils import secure_filename
-from transformers import pipeline
 from fpdf import FPDF
 from docx import Document
-from flask import send_file
 from io import BytesIO
 import json
 from reportlab.pdfgen import canvas
+from pywhispercpp.model import Model
+import os
+import subprocess
+import argostranslate.package
+import argostranslate.translate
 
-# Initialize Blueprint
 transcribe_routes = Blueprint("transcribe_routes", __name__)
 
-# Directories for uploaded and output files
 UPLOAD_FOLDER = 'uploads'
 OUTPUT_FOLDER = 'outputs'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -24,54 +20,36 @@ os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 FFMPEG_WORKERS = 4
 
-# helper function for transcription
-def transcribe_audio(audio_file_path):
-    device = "cuda:0" if torch.cuda.is_available() else "cpu"
-    
-    pipe = pipeline(
-        "automatic-speech-recognition",
-        model="openai/whisper-large-v3-turbo",
-        device=device,
-        return_timestamps=True,
-    )
-    
-    result = pipe(audio_file_path)
-    
-    return result["text"]
+SUPPORTED_LANGUAGES = [
+    'ar', 'az', 'zh', 'nl', 'en', 'fi', 'fr', 'de', 'hi', 'hu', 'id', 'ga', 'it', 'ja', 'ko', 'pl', 'pt', 'ru', 'es', 'sv', 'tr', 'uk', 'vi'
+]
 
-# helper function for translation
-def translate_text(text, from_code, to_code):
-    argostranslate.package.update_package_index()
-    available_packages = argostranslate.package.get_available_packages()
-    package_to_install = next(
-        filter(
-            lambda x: x.from_code == from_code and x.to_code == to_code,
-            available_packages
-        )
-    )
-    argostranslate.package.install_from_path(package_to_install.download())
-    
-    translated = argostranslate.translate.translate(text, from_code, to_code)
-    return translated
+def transcribe_audio(audio_file_path, language=None):
+    try:
+        model = Model(f'base-q5_1', n_threads=12)
+        if language:
+            segments = model.transcribe(audio_file_path, language=language)
+        else:
+            segments = model.transcribe(audio_file_path)
+        
+        output = " ".join([segment.text for segment in segments])
+        return output
+    except Exception as e:
+        raise RuntimeError(f"Whisper transcription failed: {str(e)}")
 
-# helper function for extracting audio from video using ffmpeg with multithreading
 def extract_audio_from_video(video_file_path, audio_output_path):
-    # FFmpeg command to extract audio
     cmd = [
-        'ffmpeg', 
-        '-i', video_file_path,  # input video file
-        '-vn',                  # disable video recording
-        '-acodec', 'pcm_s16le', # audio codec
-        '-ar', '16000',         # sample rate
-        '-ac', '1',             # number of audio channels (mono)
-        '-threads', str(FFMPEG_WORKERS),  # number of threads/workers
-        audio_output_path       # output audio file path
+        'ffmpeg',
+        '-i', video_file_path,
+        '-vn',
+        '-acodec', 'pcm_s16le',
+        '-ar', '16000',
+        '-ac', '1',
+        '-threads', str(FFMPEG_WORKERS),
+        audio_output_path
     ]
-    
-    # Run the command using subprocess to extract audio
     subprocess.run(cmd, check=True)
 
-# helper function for saving transcription to different formats
 def generate_transcription_file(transcribed_text, save_format):
     if save_format == "txt":
         file_stream = BytesIO()
@@ -99,13 +77,11 @@ def generate_transcription_file(transcribed_text, save_format):
         pdf_canvas = canvas.Canvas(file_stream)
         pdf_canvas.setFont("Helvetica", 12)
         
-        # Define margins and page width
         page_width, page_height = pdf_canvas._pagesize
         margin = 40
         text_width = page_width - 2 * margin
         y_position = page_height - margin
         
-        # Split the text into lines that fit within the page width
         lines = []
         for line in transcribed_text.splitlines():
             words = line.split(' ')
@@ -118,13 +94,12 @@ def generate_transcription_file(transcribed_text, save_format):
                     current_line = word + " "
             lines.append(current_line.strip())
         
-        # Add lines to the PDF
         for line in lines:
-            if y_position < margin:  # Start a new page if out of space
+            if y_position < margin:
                 pdf_canvas.showPage()
                 y_position = page_height - margin
             pdf_canvas.drawString(margin, y_position, line)
-            y_position -= 15  # Line spacing
+            y_position -= 15
         
         pdf_canvas.save()
         file_stream.seek(0)
@@ -132,9 +107,40 @@ def generate_transcription_file(transcribed_text, save_format):
     
     raise ValueError("Unsupported format")
 
-# Endpoint for transcription
+def translate_text(text, from_code, to_code):
+    argostranslate.package.update_package_index()
+    available_packages = argostranslate.package.get_available_packages()
+    package_to_install = next(
+        filter(
+            lambda x: x.from_code == from_code and x.to_code == to_code,
+            available_packages
+        )
+    )
+    argostranslate.package.install_from_path(package_to_install.download())
+    
+    translated = argostranslate.translate.translate(text, from_code, to_code)
+    return translated
+
+def validate_language(language):
+    if language not in SUPPORTED_LANGUAGES:
+        return jsonify({'error': 'Unsupported language. Please choose from the following: ' + ', '.join(SUPPORTED_LANGUAGES)}), 400
+    return None
+
 @transcribe_routes.route('/transcribe_audio', methods=['POST'])
 def transcribe_audio_endpoint():
+    input_language = request.form.get('input_language', None)
+    output_language = request.form.get('output_language', 'en')
+    save_file = request.form.get('save_file', False)
+    save_format = request.form.get('save_format', 'txt')
+    if input_language:
+        validation_error = validate_language(input_language)
+        if validation_error:
+            return validation_error
+    
+    validation_error = validate_language(output_language)
+    if validation_error:
+        return validation_error
+
     if 'file' not in request.files:
         return jsonify({'error': 'No file part in the request'}), 400
 
@@ -145,17 +151,39 @@ def transcribe_audio_endpoint():
     filename = secure_filename(file.filename)
     filepath = os.path.join(UPLOAD_FOLDER, filename)
     file.save(filepath)
-
+    # print("save file is", save_file, "and format is", save_format)
     try:
-        transcribed_text = transcribe_audio(filepath)
+        transcribed_text = transcribe_audio(filepath, input_language)
         os.remove(filepath)
+
+        if output_language != 'en':
+            transcribed_text = translate_text(transcribed_text, input_language or 'en', output_language)
+
+        if save_file and save_format in ['txt', 'docx', 'pdf', 'json']:
+            file_stream, filename, mime_type = generate_transcription_file(transcribed_text, save_format)
+            return send_file(file_stream, download_name=filename, mimetype=mime_type, as_attachment=True)
+
         return jsonify({'transcribed_text': transcribed_text})
+
     except Exception as e:
         os.remove(filepath)
         return jsonify({'error': f'Failed to transcribe audio: {str(e)}'}), 500
-# Endpoint for video transcription
+
 @transcribe_routes.route('/transcribe_video', methods=['POST'])
 def transcribe_video_endpoint():
+    input_language = request.form.get('input_language', None)
+    output_language = request.form.get('output_language', 'en')
+    save_file = request.form.get('save_file', False)
+    save_format = request.form.get('save_format', 'txt')
+    if input_language:
+        validation_error = validate_language(input_language)
+        if validation_error:
+            return validation_error
+    
+    validation_error = validate_language(output_language)
+    if validation_error:
+        return validation_error
+
     if 'file' not in request.files:
         return jsonify({'error': 'No file part in the request'}), 400
 
@@ -168,21 +196,25 @@ def transcribe_video_endpoint():
     file.save(video_filepath)
 
     try:
-        # Extract audio from video using ffmpeg
         audio_filepath = os.path.join(UPLOAD_FOLDER, "audio.wav")
         extract_audio_from_video(video_filepath, audio_filepath)
+        transcribed_text = transcribe_audio(audio_filepath, input_language)
+        os.remove(video_filepath)
+        os.remove(audio_filepath)
 
-        # Transcribe the extracted audio
-        transcribed_text = transcribe_audio(audio_filepath)
-        os.remove(video_filepath)  # Clean up the uploaded video file
-        os.remove(audio_filepath)  # Clean up the extracted audio file
+        if output_language != 'en':
+            transcribed_text = translate_text(transcribed_text, input_language or 'en', output_language)
+
+        if save_file and save_format in ['txt', 'docx', 'pdf', 'json']:
+            file_stream, filename, mime_type = generate_transcription_file(transcribed_text, save_format)
+            return send_file(file_stream, download_name=filename, mimetype=mime_type, as_attachment=True)
+
         return jsonify({'transcribed_text': transcribed_text})
 
     except Exception as e:
         os.remove(video_filepath)
         return jsonify({'error': f'Failed to transcribe video: {str(e)}'}), 500
 
-# Endpoint for saving transcription in various formats
 @transcribe_routes.route('/save_transcription', methods=['POST'])
 def save_transcription_endpoint():
     data = request.get_json()
@@ -191,7 +223,6 @@ def save_transcription_endpoint():
 
     text = data['text']
     save_format = data['format']
-    print(text, save_format)
 
     if save_format not in ["txt", "docx", "json", "pdf"]:
         return jsonify({'error': 'Invalid format. Valid options are txt, docx, json, pdf.'}), 400
@@ -207,7 +238,6 @@ def save_transcription_endpoint():
     except Exception as e:
         return jsonify({'error': f'Failed to generate transcription: {str(e)}'}), 500
 
-# Endpoint for translation
 @transcribe_routes.route('/translate_text', methods=['POST'])
 def translate_text_endpoint():
     data = request.get_json()

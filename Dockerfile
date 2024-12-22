@@ -1,7 +1,18 @@
-# Use a slim base image with Python 3.9
+# ------------------------------
+# Stage 1: Base Stage
+# ------------------------------
 FROM python:3.9-slim AS base
 
-# Install build dependencies (used for compiling Python packages and ffmpeg)
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg libselinux1 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# ------------------------------
+# Stage 2: Build Stage
+# ------------------------------
 FROM base AS build
 
 # Install required system dependencies, including build tools and ffmpeg
@@ -20,19 +31,15 @@ COPY requirements.txt .
 # Install Python dependencies in a virtual environment
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Final production image
+# ------------------------------
+# Stage 3: Production
+# ------------------------------
 FROM base AS production
 
-# Install only runtime dependencies (ffmpeg is required here)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ffmpeg \
-    && rm -rf /var/lib/apt/lists/*
-
-# Set the working directory for the app
-WORKDIR /app
-
-# Copy only the necessary files from the build stage
+# Copy installed dependencies from the build stage
 COPY --from=build /usr/local /usr/local
+
+# Copy application files
 COPY . .
 
 # Expose application port
