@@ -156,7 +156,7 @@ def transcribe_audio_endpoint():
         transcribed_text = transcribe_audio(filepath, input_language)
         os.remove(filepath)
 
-        if output_language != 'en':
+        if not (input_language == 'en' and output_language == 'en'):
             transcribed_text = translate_text(transcribed_text, input_language or 'en', output_language)
 
         if save_file and save_format in ['txt', 'docx', 'pdf', 'json']:
@@ -202,7 +202,7 @@ def transcribe_video_endpoint():
         os.remove(video_filepath)
         os.remove(audio_filepath)
 
-        if output_language != 'en':
+        if not (input_language == 'en' and output_language == 'en'):
             transcribed_text = translate_text(transcribed_text, input_language or 'en', output_language)
 
         if save_file and save_format in ['txt', 'docx', 'pdf', 'json']:

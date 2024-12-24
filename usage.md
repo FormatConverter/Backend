@@ -110,7 +110,7 @@ curl -X POST -F "file=@korean.mp3" \
 -F "output_language=en" \
 -F "save_file=true" \
 -F "save_format=txt" \
---output transcription.txt
+--output transcription.txt \ 
 http://localhost:5050/transcribe/transcribe_audio
 ```
 
