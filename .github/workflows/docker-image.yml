@@ -2,7 +2,7 @@ name: Docker Image CI
 
 on:
   push:
-    branches: [ "tyler232-patch-1" ]
+    branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
 
