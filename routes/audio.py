@@ -14,6 +14,7 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 file_mapping = storage.get_file_mapping()
+valid_extensions = ['mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a', 'wma', 'webm', 'opus', 'aiff']
 
 def allowed_file(filename, allowed_extensions):
     '''
@@ -32,6 +33,29 @@ def generate_unique_filename(filename):
 # Audio conversion endpoint
 @audio_routes.route('/convert_audio', methods=['POST'])
 def convert_audio():
+    '''
+    @description:
+        Convert an audio file to a different format using ffmpeg, 
+        and save the converted file to the outputs folder. 
+        Basic Audio modification also supported: codec, bitrate, sample rate, channels, volume.
+
+    @params:
+    - Response Params: 
+        - Files:
+            - file: audio file to convert
+        - Required:
+            - output_format: audio format to convert to
+        - Optional:
+            - codec: audio codec to use
+            - bitrate: audio bitrate to use
+            - sample_rate: audio sample rate to use
+            - channels: audio channels to use, either 1 or 2
+            - volume: audio volume to use
+    
+    @returns:
+        - JSON response with message and output file name if successful
+        - JSON response with error message if unsuccessful
+    '''
     print("Audio Converting...")
     print(request)
 
@@ -58,9 +82,11 @@ def convert_audio():
     if not output_format or '.' in output_format:
         os.remove(filepath)
         return jsonify({'error': 'Invalid or missing output format. Please specify a valid format like "mp3", "wav", etc.'}), 400
+    elif output_format not in valid_extensions:
+        os.remove(filepath)
+        return jsonify({'error': 'Unsupported output file format'}), 400
     
     input_extension = filename.rsplit('.', 1)[1].lower()
-    valid_extensions = ['mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a', 'wma', 'webm', 'opus', 'aiff']
     if input_extension not in valid_extensions:
         os.remove(filepath)
         return jsonify({'error': 'Unsupported input file format'}), 400
@@ -68,6 +94,7 @@ def convert_audio():
     # generate output file path, and store the mapping between original and converted file names
     output_filename = f"{uuid.uuid4().hex}.{output_format}"
     output_filepath = os.path.join(OUTPUT_FOLDER, output_filename)
+    print("output will be saved to ", output_filepath)
     file_mapping[output_filename] = filename.split('.')[0] + '.' + output_format
     
     command = ["ffmpeg", "-i", filepath, "-threads", str(FFMPEG_WORKERS)]
@@ -108,4 +135,4 @@ def convert_audio():
     except subprocess.CalledProcessError as e:
         os.remove(filepath)
         return jsonify({'error': f'FFmpeg failed: {e.stderr.decode()}'}), 500
-
+   

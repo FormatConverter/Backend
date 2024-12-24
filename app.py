@@ -20,11 +20,13 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
+file_mapping = storage.get_file_mapping()
+    
 # Endpoint to download converted file
 @app.route('/download/<unique_filename>', methods=['GET'])
 def download_file(unique_filename):
     print("Downloading...")
-    original_filename = storage.get_file_mapping.get(unique_filename)
+    original_filename = file_mapping.get(unique_filename)
     print(original_filename)
     if not original_filename:
         return jsonify({'error': 'File not found'}), 404
