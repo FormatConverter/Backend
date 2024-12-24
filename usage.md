@@ -181,5 +181,4 @@ curl -X POST -H "Content-Type: application/json" \
   --output transcription.json
 ```
 
-test commit
 
