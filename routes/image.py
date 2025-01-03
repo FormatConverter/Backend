@@ -40,9 +40,10 @@ def convert_image():
             - Optional:
                 - width: image width to use
                 - height: image height to use
-                - quality: image quality to use
-                - rotate: image rotation angle to use
-                - flip: image flip direction to use
+                - quality: image quality to use (1-31)
+                - rotate: image rotation angle to use (90, 180, 270)
+                - flip: image flip direction to use (v, h, hv, vh)
+                - grayscale: convert image to grayscale (1)
     @returns:
         - JSON response with message and output file name if successful
         - JSON response with error message if unsuccessful
@@ -64,6 +65,7 @@ def convert_image():
     quality = request.form.get('quality')
     rotate = request.form.get('rotate')
     flip = request.form.get('flip')
+    grayscale = request.form.get('grayscale')
 
     output_format = request.form.get('output_format')
     
@@ -132,11 +134,10 @@ def convert_image():
         os.remove(filepath)
         return jsonify({'error': f'FFmpeg failed during the first conversion: {e.stderr.decode()}'}), 500
 
-    # flip cannot work with the first conversion step, so we need to apply it separately
-    if flip:
-        flip_command = ["ffmpeg", "-i", temp_filepath, "-threads", str(FFMPEG_WORKERS)]
+    # Apply flip if needed
+    flip_command = ["ffmpeg", "-i", temp_filepath, "-threads", str(FFMPEG_WORKERS)]
 
-        # Apply flip if provided
+    if flip:
         if flip.lower() == 'h':
             flip_command.extend(["-vf", "hflip"])
         elif flip.lower() == 'v':
@@ -148,25 +149,47 @@ def convert_image():
             os.remove(temp_filepath)
             return jsonify({'error': 'Invalid flip direction. Please use "horizontal" or "vertical".'}), 400
 
-        # final output file after flip
-        flip_command.append(output_filepath)
+    temp_filename_2 = generate_unique_filename(f"temp_output_2.{output_format}")
+    temp_filepath_2 = os.path.join(OUTPUT_FOLDER, temp_filename_2)
+    flip_command.append(temp_filepath_2)
 
-        # run ffmpeg to convert the file
-        try:
-            subprocess.run(flip_command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        except subprocess.CalledProcessError as e:
+    # ffmpeg command to flip the image
+    try:
+        subprocess.run(flip_command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    except subprocess.CalledProcessError as e:
+        os.remove(filepath)
+        os.remove(temp_filepath)
+        os.remove(temp_filepath_2)
+        return jsonify({'error': f'FFmpeg failed during the flip conversion: {e.stderr.decode()}'}), 500
+
+    # Apply grayscale if specified
+    grayscale_command = ["ffmpeg", "-i", temp_filepath_2, "-threads", str(FFMPEG_WORKERS)]
+
+    if grayscale:
+        if grayscale == "1":
+            grayscale_command.extend(["-vf", "format=gray"])
+        else:
             os.remove(filepath)
             os.remove(temp_filepath)
-            return jsonify({'error': f'FFmpeg failed during flip conversion: {e.stderr.decode()}'}), 500
+            os.remove(temp_filepath_2)
+            return jsonify({'error': 'Invalid grayscale value. Please use "1" to convert to grayscale.'}), 400
 
-    # Clean up the temporary file if flip is not applied
-    if not flip:
-        os.rename(temp_filepath, output_filepath)
+    # Final output file
+    grayscale_command.append(output_filepath)
 
-    # Remove the original file and temporary file if flip was applied
-    os.remove(filepath)
-    if flip:
+    # ffmpeg command to convert the image to grayscale
+    try:
+        subprocess.run(grayscale_command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    except subprocess.CalledProcessError as e:
+        os.remove(filepath)
         os.remove(temp_filepath)
+        os.remove(temp_filepath_2)
+        return jsonify({'error': f'FFmpeg failed during the grayscale conversion: {e.stderr.decode()}'}), 500
+
+    # Clean up the temporary files
+    os.remove(filepath)
+    os.remove(temp_filepath)
+    os.remove(temp_filepath_2)
 
     return jsonify({
         'message': f'File converted to {output_format} successfully',
