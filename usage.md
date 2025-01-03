@@ -35,7 +35,7 @@ curl -X POST -F "file=@yourfile.wav" -F "output_format=mp3" -F "codec=pcm_s16le"
 
 ## Image
 ```bash
-curl -X POST -F "file=@yourfile.jpg" -F "output_format=png" -F "width=500" -F "height=800" -F "quality=2" http://localhost:5050/image/convert_image
+curl -X POST -F "file=@yourfile.jpg" -F "output_format=png" -F "width=500" -F "height=800" -F "quality=2" -F "rotate=90" -F "flip=v" -F "grayscale=1" http://localhost:5050/image/convert_image
 ```
 
 ### Parameters for Image Conversion

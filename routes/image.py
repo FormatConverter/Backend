@@ -15,9 +15,39 @@ os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 file_mapping = storage.get_file_mapping()
 
-# Endpoint to convert image
+def generate_unique_filename(filename):
+    """
+    Generate a unique filename using uuid to avoid name collisions.
+    """
+    extension = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
+    unique_filename = f"{uuid.uuid4().hex}.{extension}"
+    return unique_filename
+
+# Updated convert_image endpoint
 @image_routes.route('/convert_image', methods=['POST'])
 def convert_image():
+    '''
+    @description: 
+        Convert an image file to a different format using ffmpeg, 
+        and save the converted file to the outputs folder. 
+        Basic image modification also supported: width, height, quality, rotation, and flip.
+    @params:
+        - Response Params:
+            - Files:
+                - file: image file to convert
+            - Required:
+                - output_format: image format to convert to
+            - Optional:
+                - width: image width to use
+                - height: image height to use
+                - quality: image quality to use (1-31)
+                - rotate: image rotation angle to use (90, 180, 270)
+                - flip: image flip direction to use (v, h, hv, vh)
+                - grayscale: convert image to grayscale (1)
+    @returns:
+        - JSON response with message and output file name if successful
+        - JSON response with error message if unsuccessful
+    '''
     if 'file' not in request.files:
         return jsonify({'error': 'No file part in the request'}), 400
 
@@ -26,16 +56,19 @@ def convert_image():
         return jsonify({'error': 'No file selected for upload'}), 400
 
     filename = secure_filename(file.filename)
-    filepath = os.path.join(UPLOAD_FOLDER, filename)
+    unique_filename = generate_unique_filename(filename)
+    filepath = os.path.join(UPLOAD_FOLDER, unique_filename)
     file.save(filepath)
 
-    # get image conversion parameters from the form
     width = request.form.get('width')
     height = request.form.get('height')
     quality = request.form.get('quality')
+    rotate = request.form.get('rotate')
+    flip = request.form.get('flip')
+    grayscale = request.form.get('grayscale')
 
-    # get output format from the form and check if it is valid
     output_format = request.form.get('output_format')
+    
     if not output_format or '.' in output_format:
         os.remove(filepath)
         return jsonify({'error': 'Invalid or missing output format. Please specify a valid format like "jpg", "png", etc.'}), 400
@@ -46,11 +79,12 @@ def convert_image():
         os.remove(filepath)
         return jsonify({'error': 'Unsupported input file format'}), 400
 
-    output_filename = os.path.splitext(filename)[0] + "." + output_format
+    output_filename = generate_unique_filename(f"output.{output_format}")
     output_filepath = os.path.join(OUTPUT_FOLDER, output_filename)
 
     command = ["ffmpeg", "-i", filepath, "-threads", str(FFMPEG_WORKERS)]
 
+    # Apply width and height if provided
     if width and height:
         try:
             width = int(width)
@@ -60,6 +94,7 @@ def convert_image():
             os.remove(filepath)
             return jsonify({'error': 'Invalid width or height values. They must be integers.'}), 400
 
+    # Apply quality if provided
     if quality:
         try:
             quality = int(quality)
@@ -71,15 +106,92 @@ def convert_image():
             os.remove(filepath)
             return jsonify({'error': 'Invalid quality value. It must be an integer between 1 and 31.'}), 400
 
-    command.append(output_filepath)
+    # Apply rotation if provided
+    if rotate:
+        try:
+            rotate_angle = int(rotate)
+            if rotate_angle not in [90, 180, 270]:
+                raise ValueError
+            if rotate_angle == 90:
+                command.extend(["-vf", "transpose=1"])
+            elif rotate_angle == 180:
+                command.extend(["-vf", "transpose=2,transpose=2"])
+            elif rotate_angle == 270:
+                command.extend(["-vf", "transpose=2"])
+        except ValueError:
+            os.remove(filepath)
+            return jsonify({'error': 'Invalid rotation value. Only 90, 180, and 270 degrees are supported.'}), 400
     
+    # First conversion step: Apply width, height, quality, rotation
+    temp_filename = generate_unique_filename(f"temp_output.{output_format}")
+    temp_filepath = os.path.join(OUTPUT_FOLDER, temp_filename)
+    command.append(temp_filepath)
+
+    # run ffmpeg to convert the file
     try:
         subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        os.remove(filepath)  # remove the uploaded file
-        return jsonify({
-            'message': f'File converted to {output_format} successfully',
-            'output_file': output_filename
-        })
     except subprocess.CalledProcessError as e:
         os.remove(filepath)
-        return jsonify({'error': f'FFmpeg failed: {e.stderr.decode()}'}), 500
+        return jsonify({'error': f'FFmpeg failed during the first conversion: {e.stderr.decode()}'}), 500
+
+    # Apply flip if needed
+    flip_command = ["ffmpeg", "-i", temp_filepath, "-threads", str(FFMPEG_WORKERS)]
+
+    if flip:
+        if flip.lower() == 'h':
+            flip_command.extend(["-vf", "hflip"])
+        elif flip.lower() == 'v':
+            flip_command.extend(["-vf", "vflip"])
+        elif flip.lower() == 'hv' or flip.lower() == 'vh':
+            flip_command.extend(["-vf", "hflip,vflip"])
+        else:
+            os.remove(filepath)
+            os.remove(temp_filepath)
+            return jsonify({'error': 'Invalid flip direction. Please use "horizontal" or "vertical".'}), 400
+
+    temp_filename_2 = generate_unique_filename(f"temp_output_2.{output_format}")
+    temp_filepath_2 = os.path.join(OUTPUT_FOLDER, temp_filename_2)
+    flip_command.append(temp_filepath_2)
+
+    # ffmpeg command to flip the image
+    try:
+        subprocess.run(flip_command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    except subprocess.CalledProcessError as e:
+        os.remove(filepath)
+        os.remove(temp_filepath)
+        os.remove(temp_filepath_2)
+        return jsonify({'error': f'FFmpeg failed during the flip conversion: {e.stderr.decode()}'}), 500
+
+    # Apply grayscale if specified
+    grayscale_command = ["ffmpeg", "-i", temp_filepath_2, "-threads", str(FFMPEG_WORKERS)]
+
+    if grayscale:
+        if grayscale == "1":
+            grayscale_command.extend(["-vf", "format=gray"])
+        else:
+            os.remove(filepath)
+            os.remove(temp_filepath)
+            os.remove(temp_filepath_2)
+            return jsonify({'error': 'Invalid grayscale value. Please use "1" to convert to grayscale.'}), 400
+
+    # Final output file
+    grayscale_command.append(output_filepath)
+
+    # ffmpeg command to convert the image to grayscale
+    try:
+        subprocess.run(grayscale_command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    except subprocess.CalledProcessError as e:
+        os.remove(filepath)
+        os.remove(temp_filepath)
+        os.remove(temp_filepath_2)
+        return jsonify({'error': f'FFmpeg failed during the grayscale conversion: {e.stderr.decode()}'}), 500
+
+    # Clean up the temporary files
+    os.remove(filepath)
+    os.remove(temp_filepath)
+    os.remove(temp_filepath_2)
+
+    return jsonify({
+        'message': f'File converted to {output_format} successfully',
+        'output_file': output_filename
+    })
